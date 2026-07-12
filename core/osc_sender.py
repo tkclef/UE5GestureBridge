@@ -1,152 +1,34 @@
-"""
-=========================================
-UE5GestureBridge
-osc_sender.py
+def send(self, hands):
 
-Unreal Engine 5 OSC Communication Layer
-=========================================
-"""
+    # Default state
+    left_found = False
+    right_found = False
 
-from pythonosc.udp_client import SimpleUDPClient
-import time
+    for hand in hands:
 
+        hand_name = hand["hand"]
 
-class OSCSender:
+        if hand_name == "left":
+            left_found = True
+        elif hand_name == "right":
+            right_found = True
 
-    def __init__(self, ip="127.0.0.1", port=8000):
+        prefix = f"/UE5GestureBridge/{hand_name}"
 
-        self.client = SimpleUDPClient(
-            ip,
-            port
-        )
+        self.client.send_message(f"{prefix}/tracked", 1)
+        self.client.send_message(f"{prefix}/gesture", hand["gesture"])
+        self.client.send_message(f"{prefix}/fingers", hand["fingers"])
+        self.client.send_message(f"{prefix}/pinch", hand["pinch"])
+        self.client.send_message(f"{prefix}/wrist", list(hand["wrist"]))
+        self.client.send_message(f"{prefix}/center", list(hand["center"]))
 
-        print(
-            f"OSC Connected -> {ip}:{port}"
-        )
+        self.send_landmarks(prefix, hand["landmarks"])
 
+    # Tell UE5 when a hand is NOT visible
+    if not left_found:
+        self.client.send_message("/UE5GestureBridge/left/tracked", 0)
 
-    # -------------------------------------
-    # Send Hand Data
-    # -------------------------------------
+    if not right_found:
+        self.client.send_message("/UE5GestureBridge/right/tracked", 0)
 
-    def send(self, hands):
-
-        current_hands = {
-            "left": False,
-            "right": False
-        }
-
-
-        for hand in hands:
-
-            hand_name = hand["hand"]
-
-            current_hands[hand_name] = True
-
-
-            prefix = (
-                f"/UE5GestureBridge/{hand_name}"
-            )
-
-
-            # Tracking state
-
-            self.client.send_message(
-                f"{prefix}/tracked",
-                1
-            )
-
-
-            # Gesture
-
-            self.client.send_message(
-                f"{prefix}/gesture",
-                hand["gesture"]
-            )
-
-
-            # Finger states
-
-            self.client.send_message(
-                f"{prefix}/fingers",
-                hand["fingers"]
-            )
-
-
-            # Pinch strength
-
-            self.client.send_message(
-                f"{prefix}/pinch",
-                hand["pinch"]
-            )
-
-
-            # Wrist position
-
-            self.client.send_message(
-                f"{prefix}/wrist",
-                [
-                    hand["wrist"][0],
-                    hand["wrist"][1]
-                ]
-            )
-
-
-            # Palm center
-
-            self.client.send_message(
-                f"{prefix}/center",
-                [
-                    hand["center"][0],
-                    hand["center"][1]
-                ]
-            )
-
-
-            # Send landmarks
-
-            self.send_landmarks(
-                prefix,
-                hand["landmarks"]
-            )
-
-
-        self.send_timestamp()
-
-
-
-    # -------------------------------------
-    # Send 21 MediaPipe Landmarks
-    # -------------------------------------
-
-    def send_landmarks(self, prefix, landmarks):
-
-        for index, point in enumerate(landmarks):
-
-            self.client.send_message(
-
-                f"{prefix}/landmark/{index}",
-
-                [
-                    point["x"],
-                    point["y"],
-                    point["z"]
-                ]
-
-            )
-
-
-
-    # -------------------------------------
-    # Sync timestamp
-    # -------------------------------------
-
-    def send_timestamp(self):
-
-        self.client.send_message(
-
-            "/UE5GestureBridge/time",
-
-            time.time()
-
-        )
+    self.send_timestamp()
